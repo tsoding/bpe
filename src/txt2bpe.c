@@ -62,17 +62,31 @@ bool dump_pairs(const char *file_path, Pairs pairs)
     return write_entire_file(file_path, pairs.items, pairs.count*sizeof(*pairs.items));
 }
 
-int main()
+int main(int argc, char **argv)
 {
-    // Taken from https://en.wikipedia.org/wiki/Byte_pair_encoding
-    // const char *text = "The original BPE algorithm operates by iteratively replacing the most common contiguous sequences of characters in a target text with unused 'placeholder' bytes. The iteration ends when no sequences can be found, leaving the target text effectively compressed. Decompression can be performed by reversing this process, querying known placeholder terms against their corresponding denoted sequence, using a lookup table. In the original paper, this lookup table is encoded and stored alongside the compressed text.";
-    const char *text = "The quick brown fox jumps over the lazy dog";
-    int text_size = strlen(text);
+    const char *program_name = shift(argv, argc);
 
+    if (argc <= 0) {
+        fprintf(stderr, "Usage: %s <input.txt> <output.bin>\n", program_name);
+        fprintf(stderr, "ERROR: no input is provided\n");
+        return 1;
+    }
+    const char *input_file_path = shift(argv, argc);
+
+    if (argc <= 0) {
+        fprintf(stderr, "Usage: %s <input.txt> <output.bin>\n", program_name);
+        fprintf(stderr, "ERROR: no output is provided\n");
+        return 1;
+    }
+    const char *output_file_path = shift(argv, argc);
+
+    String_Builder sb = {0};
     Freq *freq = NULL;
     Pairs pairs = {0};
     Tokens tokens_in = {0};
     Tokens tokens_out = {0};
+
+    if (!read_entire_file(input_file_path, &sb)) return 1;
 
     // 0   => { .l = 0, .r = ??? }
     // 1   => { .l = 1, .r = ??? }
@@ -84,8 +98,8 @@ int main()
         da_append(&pairs, ((Pair) {.l = i}));
     }
 
-    for (int i = 0; i < text_size; ++i) {
-        da_append(&tokens_in, text[i]);
+    for (size_t i = 0; i < sb.count; ++i) {
+        da_append(&tokens_in, sb.items[i]);
     }
 
     for (;;) {
@@ -134,20 +148,7 @@ int main()
         swap(Tokens, tokens_in, tokens_out);
     }
 
-    if (!dump_pairs("pairs.bin", pairs)) return 1;
-
-    // Freqs sorted_freqs = {0};
-
-    // for (ptrdiff_t i = 0; i < hmlen(freq); ++i) {
-    //     da_append(&sorted_freqs, freq[i]);
-    // }
-
-    // qsort(sorted_freqs.items, sorted_freqs.count, sizeof(*sorted_freqs.items), compare_freqs);
-
-    // for (size_t i = 0; i < 10; ++i) {
-    //     Freq *freq = &sorted_freqs.items[i];
-    //     printf("(%u, %u) => %zu\n", freq->key.l, freq->key.r, freq->value);
-    // }
+    if (!dump_pairs(output_file_path, pairs)) return 1;
 
     return 0;
 }

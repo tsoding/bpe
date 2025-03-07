@@ -18,7 +18,7 @@ int main(int argc, char **argv)
     NOB_GO_REBUILD_URSELF(argc, argv);
     Cmd cmd = {0};
     if (!nob_mkdir_if_not_exists(BUILD_FOLDER)) return 1;
-    if (!build_tool(&cmd, BUILD_FOLDER"bpe", SRC_FOLDER"bpe.c")) return 1;
+    if (!build_tool(&cmd, BUILD_FOLDER"txt2bpe", SRC_FOLDER"txt2bpe.c")) return 1;
     if (!build_tool(&cmd, BUILD_FOLDER"bpe2dot", SRC_FOLDER"bpe2dot.c")) return 1;
 
     return 0;
