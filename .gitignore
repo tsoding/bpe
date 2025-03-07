@@ -1,0 +1,5 @@
+build/
+nob
+*.dot
+*.png
+*.bin
