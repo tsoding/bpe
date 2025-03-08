@@ -53,6 +53,7 @@ void render_tokens(Pairs pairs, Tokens tokens)
         (y) = t; \
     } while(0)
 
+// TODO: introduce magic and version to the format of the pairs
 bool dump_pairs(const char *file_path, Pairs pairs)
 {
     return write_entire_file(file_path, pairs.items, pairs.count*sizeof(*pairs.items));
