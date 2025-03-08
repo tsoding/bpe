@@ -36,17 +36,21 @@ int main(int argc, char **argv)
     if (!load_pairs(input_file_path, &pairs, &sb)) return 1;
 
     for (uint32_t token = 1; token < pairs.count; ++token) {
-        printf("%u => |", token);
+        printf("%u => \"", token);
         sb.count = 0;
         render_token(pairs, token, &sb);
         for (size_t i = 0; i < sb.count; ++i) {
-            if (isprint(sb.items[i])) {
+            if (sb.items[i] == '"') {
+                printf("\\\"");
+            } else if (sb.items[i] == '\\') {
+                printf("\\\\");
+            } else if (isprint(sb.items[i])) {
                 printf("%c", sb.items[i]);
             } else {
                 printf("\\x%02X", (uint8_t)sb.items[i]);
             }
         }
-        printf("|\n");
+        printf("\"\n");
     }
 
     return 0;
