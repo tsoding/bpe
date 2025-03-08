@@ -2,10 +2,6 @@
 #include <string.h>
 #include <stdint.h>
 
-#define NOB_IMPLEMENTATION
-#define NOB_STRIP_PREFIX
-#include "nob.h"
-
 #define STB_DS_IMPLEMENTATION
 #include "stb_ds.h"
 
