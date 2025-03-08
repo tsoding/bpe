@@ -3,6 +3,9 @@
 
 #include <stdint.h>
 
+// TODO: support unicode
+// Right now we assume everything is ASCII.
+
 typedef struct {
     uint32_t l, r;
 } Pair;
