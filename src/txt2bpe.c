@@ -102,6 +102,8 @@ int main(int argc, char **argv)
         da_append(&tokens_in, sb.items[i]);
     }
 
+    // TODO: periodically dump the pairs during the process
+    // TODO: paralellize the process
     for (;;) {
         // render_tokens(pairs, tokens_in);
         // printf("%zu\n", tokens_in.count);
