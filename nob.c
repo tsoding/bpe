@@ -9,7 +9,7 @@
 
 void build_tool(Cmd *cmd, Procs *procs, const char *bin_path, const char *src_path)
 {
-    cmd_append(cmd, "cc", "-Wall", "-Wextra", "-ggdb", "-I"THIRDPARTY_FOLDER, "-o", bin_path, src_path, SRC_FOLDER"bpe.c");
+    cmd_append(cmd, "cc", "-Wall", "-Wextra", "-ggdb", "-I"THIRDPARTY_FOLDER, "-march=native", "-Ofast", "-o", bin_path, src_path, SRC_FOLDER"bpe.c");
     da_append(procs, cmd_run_async_and_reset(cmd));
 }
 

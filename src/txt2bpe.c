@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <time.h>
+
+#include <pthread.h>
+#include <semaphore.h>
 
 #define STB_DS_IMPLEMENTATION
 #include "stb_ds.h"
@@ -57,6 +61,84 @@ void report_progress(size_t iteration, Tokens tokens_in, Pairs pairs)
     printf("    BPE table size: %zu\n", pairs.count);
 }
 
+double get_secs(void)
+{
+    struct timespec tp = {0};
+    int ret = clock_gettime(CLOCK_MONOTONIC, &tp);
+    assert(ret == 0);
+    return (double)tp.tv_sec + (double)tp.tv_nsec*1e-9;
+}
+
+double begin_secs;
+#if 1
+    #define PROFILE_BEGIN() begin_secs = get_secs();
+    #define PROFILE_END(label) printf("%s: %lfsecs\n", (label), get_secs() - begin_secs);
+#else
+    #define PROFILE_BEGIN(...)
+    #define PROFILE_END(...)
+#endif
+
+#define ENABLE_THREADS
+#define THREAD_COUNT 16
+#define REPORT_FREQ 1
+#define FREQ_COLLECTION_CHUNK_SIZE (512*1024)
+Tokens tokens_in = {0};
+
+size_t tokens_in_cursor = 0;
+pthread_mutex_t tokens_in_cursor_mutex = {0};
+
+Freq *freqs[THREAD_COUNT] = {0};
+pthread_t threads[THREAD_COUNT] = {0};
+sem_t collect_freqs_start = {0};
+pthread_barrier_t collect_freqs_stop = {0};
+
+void *freq_collector(void *arg)
+{
+    size_t id = (size_t)(arg);
+
+    while (true) {
+        int ret = sem_wait(&collect_freqs_start);
+        if (ret == -1) {
+            fprintf(stderr, "ERROR: could not wait on semaphore: %s\n", strerror(errno));
+            exit(1);
+        }
+
+        hmfree(freqs[id]);
+        while (true) {
+            size_t begin, end;
+            pthread_mutex_lock(&tokens_in_cursor_mutex);
+            if (tokens_in_cursor + FREQ_COLLECTION_CHUNK_SIZE <= tokens_in.count) {
+                begin = tokens_in_cursor;
+                tokens_in_cursor += FREQ_COLLECTION_CHUNK_SIZE;
+                end = tokens_in_cursor;
+            } else {
+                begin = tokens_in_cursor;
+                tokens_in_cursor = tokens_in.count;
+                end = tokens_in_cursor;
+            }
+            if (end <= begin) {
+                pthread_mutex_unlock(&tokens_in_cursor_mutex);
+                break;
+            }
+            pthread_mutex_unlock(&tokens_in_cursor_mutex);
+
+            for (size_t i = begin; i < end; ++i) {
+                if (i + 1 >= tokens_in.count) break;
+                Pair pair = {
+                    .l = tokens_in.items[i],
+                    .r = tokens_in.items[i + 1]
+                };
+                ptrdiff_t place = hmgeti(freqs[id], pair);
+                if (place < 0) hmput(freqs[id], pair, 1);
+                else freqs[id][place].value += 1;
+            }
+        }
+
+        pthread_barrier_wait(&collect_freqs_stop);
+    }
+    UNREACHABLE("freq_collector");
+}
+
 int main(int argc, char **argv)
 {
     const char *program_name = shift(argv, argc);
@@ -76,9 +158,9 @@ int main(int argc, char **argv)
     const char *output_file_path = shift(argv, argc);
 
     String_Builder sb = {0};
-    Freq *freq = NULL;
+    Freq *merged_freq = NULL;
     Pairs pairs = {0};
-    Tokens tokens_in = {0};
+
     Tokens tokens_out = {0};
 
     if (!read_entire_file(input_file_path, &sb)) return 1;
@@ -97,50 +179,104 @@ int main(int argc, char **argv)
         da_append(&tokens_in, sb.items[i]);
     }
 
+#ifdef ENABLE_THREADS
+    int ret = pthread_mutex_init(&tokens_in_cursor_mutex, NULL);
+    if (ret != 0) {
+        fprintf(stderr, "ERROR: could not initialize tokens_in_cursor_mutex: %s\n", strerror(ret));
+        return 1;
+    }
+
+    ret = sem_init(&collect_freqs_start, 0, 0);
+    if (ret != 0) {
+        fprintf(stderr, "ERROR: could not initialize collect_freqs_start: %s\n", strerror(ret));
+        return 1;
+    }
+
+    ret = pthread_barrier_init(&collect_freqs_stop, NULL, THREAD_COUNT + 1);
+    if (ret != 0) {
+        fprintf(stderr, "ERROR: could not initialize collect_freqs_stop: %s\n", strerror(ret));
+        return 1;
+    }
+
+    for (size_t id = 0; id < THREAD_COUNT; ++id) {
+        ret = pthread_create(&threads[id], NULL, freq_collector, (void*)id);
+        if (ret != 0) {
+            fprintf(stderr, "ERROR: could not create thread: %s\n", strerror(ret));
+            return 1;
+        }
+    }
+#endif // ENABLE_THREADS
+
+
     // TODO: periodically dump the pairs during the process
     // TODO: paralellize the process
     size_t iteration = 0;
     for (;; ++iteration) {
-        if (iteration%100 == 0) report_progress(iteration, tokens_in, pairs);
+        if (iteration%REPORT_FREQ == 0) report_progress(iteration, tokens_in, pairs);
 
-        hmfree(freq);
-        for (size_t i = 0; i < tokens_in.count - 1; ++i) {
-            Pair pair = {
-                .l = tokens_in.items[i],
-                .r = tokens_in.items[i + 1]
-            };
-            ptrdiff_t i = hmgeti(freq, pair);
-            if (i < 0) hmput(freq, pair, 1);
-            else freq[i].value += 1;
-        }
-
-        ptrdiff_t max_index = 0;
-        for (ptrdiff_t i = 1; i < hmlen(freq); ++i) {
-            if (freq[i].value > freq[max_index].value) {
-                max_index = i;
+        PROFILE_BEGIN();
+            hmfree(merged_freq);
+#ifndef ENABLE_THREADS
+            for (size_t i = 0; i < tokens_in.count - 1; ++i) {
+                Pair pair = {
+                    .l = tokens_in.items[i],
+                    .r = tokens_in.items[i + 1]
+                };
+                ptrdiff_t place = hmgeti(merged_freq, pair);
+                if (place < 0) hmput(merged_freq, pair, 1);
+                else merged_freq[place].value += 1;
             }
-        }
+#else
+            pthread_mutex_lock(&tokens_in_cursor_mutex);
+            tokens_in_cursor = 0;
+            pthread_mutex_unlock(&tokens_in_cursor_mutex);
 
-        if (freq[max_index].value <= 1) break; // compression is done
+            for(size_t i = 0; i < THREAD_COUNT; ++i) sem_post(&collect_freqs_start);
+            pthread_barrier_wait(&collect_freqs_stop);
 
-        da_append(&pairs, freq[max_index].key);
-
-        tokens_out.count = 0;
-        for (size_t i = 0; i < tokens_in.count; ) {
-            if (i + 1 >= tokens_in.count) {
-                da_append(&tokens_out, tokens_in.items[i]);
-                i += 1;
-            } else {
-                Pair pair = {.l = tokens_in.items[i], .r = tokens_in.items[i + 1]};
-                if (memcmp(&pair, &freq[max_index].key, sizeof(pair)) == 0) {
-                    da_append(&tokens_out, pairs.count - 1);
-                    i += 2;
-                } else {
-                    da_append(&tokens_out, tokens_in.items[i]);
-                    i += 1;
+            for (size_t id = 0; id < THREAD_COUNT; ++id) {
+                size_t n = hmlen(freqs[id]);
+                for (size_t i = 0; i < n; ++i) {
+                    Pair key = freqs[id][i].key;
+                    ptrdiff_t place = hmgeti(merged_freq, key);
+                    if (place < 0) hmputs(merged_freq, freqs[id][i]);
+                    else merged_freq[place].value += freqs[id][i].value;
                 }
             }
-        }
+#endif
+        PROFILE_END("Collecting stats");
+
+        PROFILE_BEGIN();
+            ptrdiff_t max_index = 0;
+            for (ptrdiff_t i = 1; i < hmlen(merged_freq); ++i) {
+                if (merged_freq[i].value > merged_freq[max_index].value) {
+                    max_index = i;
+                }
+            }
+        PROFILE_END("Finding most frequent pairs");
+
+        if (merged_freq[max_index].value <= 1) break; // compression is done
+
+        da_append(&pairs, merged_freq[max_index].key);
+
+        PROFILE_BEGIN();
+            tokens_out.count = 0;
+            for (size_t i = 0; i < tokens_in.count; ) {
+                if (i + 1 >= tokens_in.count) {
+                    da_append(&tokens_out, tokens_in.items[i]);
+                    i += 1;
+                } else {
+                    Pair pair = {.l = tokens_in.items[i], .r = tokens_in.items[i + 1]};
+                    if (memcmp(&pair, &merged_freq[max_index].key, sizeof(pair)) == 0) {
+                        da_append(&tokens_out, pairs.count - 1);
+                        i += 2;
+                    } else {
+                        da_append(&tokens_out, tokens_in.items[i]);
+                        i += 1;
+                    }
+                }
+            }
+        PROFILE_END("Replacing the frequent pair");
 
         swap(Tokens, tokens_in, tokens_out);
     }
