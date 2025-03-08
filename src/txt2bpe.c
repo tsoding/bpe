@@ -62,19 +62,24 @@ bool dump_pairs(const char *file_path, Pairs pairs)
     return write_entire_file(file_path, pairs.items, pairs.count*sizeof(*pairs.items));
 }
 
+void usage(const char *program_name)
+{
+    fprintf(stderr, "Usage: %s <input.txt> <output.bin>\n", program_name);
+}
+
 int main(int argc, char **argv)
 {
     const char *program_name = shift(argv, argc);
 
     if (argc <= 0) {
-        fprintf(stderr, "Usage: %s <input.txt> <output.bin>\n", program_name);
+        usage(program_name);
         fprintf(stderr, "ERROR: no input is provided\n");
         return 1;
     }
     const char *input_file_path = shift(argv, argc);
 
     if (argc <= 0) {
-        fprintf(stderr, "Usage: %s <input.txt> <output.bin>\n", program_name);
+        usage(program_name);
         fprintf(stderr, "ERROR: no output is provided\n");
         return 1;
     }

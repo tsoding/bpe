@@ -33,19 +33,24 @@ void render_dot(Pairs pairs, String_Builder *sb)
     sb_append_cstr(sb, "}\n");
 }
 
+void usage(const char *program_name)
+{
+    fprintf(stderr, "Usage: %s <input.bin> <output.dot>\n", program_name);
+}
+
 int main(int argc, char **argv)
 {
     const char *program_name = shift(argv, argc);
 
     if (argc <= 0) {
-        fprintf(stderr, "Usage: %s <input.bin> <output.dot>\n", program_name);
+        usage(program_name);
         fprintf(stderr, "ERROR: no input is provided\n");
         return 1;
     }
     const char *input_file_path = shift(argv, argc);
 
     if (argc <= 0) {
-        fprintf(stderr, "Usage: %s <input.bin> <output.dot>\n", program_name);
+        usage(program_name);
         fprintf(stderr, "ERROR: no output is provided\n");
         return 1;
     }
