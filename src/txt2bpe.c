@@ -64,7 +64,7 @@ bool dump_pairs(const char *file_path, Pairs pairs)
 
 void usage(const char *program_name)
 {
-    fprintf(stderr, "Usage: %s <input.txt> <output.bin>\n", program_name);
+    fprintf(stderr, "Usage: %s <input.txt> <output.bpe>\n", program_name);
 }
 
 int main(int argc, char **argv)
