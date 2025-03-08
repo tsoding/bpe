@@ -32,20 +32,6 @@ typedef struct {
     size_t capacity;
 } Tokens;
 
-void render_tokens(Pairs pairs, Tokens tokens)
-{
-    for (size_t i = 0; i < tokens.count; ++i) {
-        uint32_t token = tokens.items[i];
-        assert(token < pairs.count);
-        if (pairs.items[token].l == token) {
-            printf("%c", token);
-        } else {
-            printf("[%u]", token);
-        }
-    }
-    printf("\n");
-}
-
 #define swap(Type, x, y) \
     do { \
         Type t = (x); \
@@ -62,6 +48,13 @@ bool dump_pairs(const char *file_path, Pairs pairs)
 void usage(const char *program_name)
 {
     fprintf(stderr, "Usage: %s <input.txt> <output.bpe>\n", program_name);
+}
+
+void report_progress(size_t iteration, Tokens tokens_in, Pairs pairs)
+{
+    printf("INFO: iteration %zu\n", iteration);
+    printf("    Text tokens count: %zu\n", tokens_in.count);
+    printf("    BPE table size: %zu\n", pairs.count);
 }
 
 int main(int argc, char **argv)
@@ -106,9 +99,9 @@ int main(int argc, char **argv)
 
     // TODO: periodically dump the pairs during the process
     // TODO: paralellize the process
-    for (;;) {
-        // render_tokens(pairs, tokens_in);
-        // printf("%zu\n", tokens_in.count);
+    size_t iteration = 0;
+    for (;; ++iteration) {
+        if (iteration%100 == 0) report_progress(iteration, tokens_in, pairs);
 
         hmfree(freq);
         for (size_t i = 0; i < tokens_in.count - 1; ++i) {
@@ -151,8 +144,10 @@ int main(int argc, char **argv)
 
         swap(Tokens, tokens_in, tokens_out);
     }
+    report_progress(iteration, tokens_in, pairs);
 
     if (!dump_pairs(output_file_path, pairs)) return 1;
+    printf("INFO: generated %s\n", output_file_path);
 
     return 0;
 }
