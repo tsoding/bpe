@@ -29,25 +29,12 @@ typedef struct {
     size_t capacity;
 } Freqs;
 
-
-typedef struct {
-    uint32_t *items;
-    size_t count;
-    size_t capacity;
-} Tokens;
-
 #define swap(Type, x, y) \
     do { \
         Type t = (x); \
         (x) = (y); \
         (y) = t; \
     } while(0)
-
-// TODO: introduce magic and version to the format of the pairs
-bool dump_pairs(const char *file_path, Pairs pairs)
-{
-    return write_entire_file(file_path, pairs.items, pairs.count*sizeof(*pairs.items));
-}
 
 void usage(const char *program_name)
 {

@@ -1,14 +1,20 @@
 #include "bpe.h"
 
-bool load_pairs(const char *file_path, Pairs *pairs, String_Builder *sb)
+bool dump_pairs(const char *file_path, Pairs pairs)
 {
-    if (!read_entire_file(file_path, sb)) return false;
-    if (sb->count%sizeof(*pairs->items) != 0) {
-        nob_log(ERROR, "%s: file size in bytes (%zu) must be divisible by %zu", file_path, sb->count, sizeof(*pairs->items));
+    // TODO: introduce magic and version to the format of the pairs
+    return write_entire_file(file_path, pairs.items, pairs.count*sizeof(*pairs.items));
+}
+
+bool load_pairs(const char *file_path, Pairs *pairs, String_Builder *tmp_sb)
+{
+    if (!read_entire_file(file_path, tmp_sb)) return false;
+    if (tmp_sb->count%sizeof(*pairs->items) != 0) {
+        nob_log(ERROR, "%s: file size in bytes (%zu) must be divisible by %zu", file_path, tmp_sb->count, sizeof(*pairs->items));
         return false;
     }
-    Pair *items = (void*)sb->items;
-    size_t items_count = sb->count/sizeof(*pairs->items);
+    Pair *items = (void*)tmp_sb->items;
+    size_t items_count = tmp_sb->count/sizeof(*pairs->items);
 
     if (items_count < BPE_PRELUDE_SIZE) {
         nob_log(ERROR, "%s: pair count %zu is too small. It must be at least %zu", items_count, file_path, BPE_PRELUDE_SIZE);

@@ -15,6 +15,12 @@
 // Right now we assume everything is ASCII.
 
 typedef struct {
+    uint32_t *items;
+    size_t count;
+    size_t capacity;
+} Tokens;
+
+typedef struct {
     uint32_t l, r;
 } Pair;
 
@@ -24,7 +30,8 @@ typedef struct {
     size_t capacity;
 } Pairs;
 
-bool load_pairs(const char *file_path, Pairs *pairs, String_Builder *sb);
+bool load_pairs(const char *file_path, Pairs *pairs, String_Builder *tmp_sb);
+bool dump_pairs(const char *file_path, Pairs pairs);
 void render_token(Pairs pairs, uint32_t token, String_Builder *sb);
 
 #endif // BPE_H_
