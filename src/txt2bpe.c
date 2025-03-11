@@ -176,7 +176,7 @@ int main(int argc, char **argv)
     }
 
     for (size_t i = 0; i < sb.count; ++i) {
-        da_append(&tokens_in, sb.items[i]);
+        da_append(&tokens_in, (uint8_t)sb.items[i]);
     }
 
 #ifdef ENABLE_THREADS
