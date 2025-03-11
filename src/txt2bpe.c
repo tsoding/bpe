@@ -71,9 +71,6 @@ double begin_secs;
 #define FREQ_COLLECTION_CHUNK_SIZE (512*1024)
 Tokens tokens_in = {0};
 
-size_t tokens_in_cursor = 0;
-pthread_mutex_t tokens_in_cursor_mutex = {0};
-
 Freq *freqs[THREAD_COUNT] = {0};
 pthread_t threads[THREAD_COUNT] = {0};
 pthread_barrier_t collect_freqs_start = {0};
@@ -87,34 +84,21 @@ void *freq_collector(void *arg)
         pthread_barrier_wait(&collect_freqs_start);
 
         hmfree(freqs[id]);
-        while (true) {
-            size_t begin, end;
-            pthread_mutex_lock(&tokens_in_cursor_mutex);
-            if (tokens_in_cursor + FREQ_COLLECTION_CHUNK_SIZE <= tokens_in.count) {
-                begin = tokens_in_cursor;
-                tokens_in_cursor += FREQ_COLLECTION_CHUNK_SIZE;
-                end = tokens_in_cursor;
-            } else {
-                begin = tokens_in_cursor;
-                tokens_in_cursor = tokens_in.count;
-                end = tokens_in_cursor;
-            }
-            if (end <= begin) {
-                pthread_mutex_unlock(&tokens_in_cursor_mutex);
-                break;
-            }
-            pthread_mutex_unlock(&tokens_in_cursor_mutex);
 
-            for (size_t i = begin; i < end; ++i) {
-                if (i + 1 >= tokens_in.count) break;
-                Pair pair = {
-                    .l = tokens_in.items[i],
-                    .r = tokens_in.items[i + 1]
-                };
-                ptrdiff_t place = hmgeti(freqs[id], pair);
-                if (place < 0) hmput(freqs[id], pair, 1);
-                else freqs[id][place].value += 1;
-            }
+        size_t chunk_size = tokens_in.count/THREAD_COUNT;
+        size_t begin      = chunk_size*id;
+        size_t end        = chunk_size*(id + 1);
+        if (id + 1 >= THREAD_COUNT) end += tokens_in.count%THREAD_COUNT;
+
+        for (size_t i = begin; i < end; ++i) {
+            if (i + 1 >= tokens_in.count) break;
+            Pair pair = {
+                .l = tokens_in.items[i],
+                .r = tokens_in.items[i + 1]
+            };
+            ptrdiff_t place = hmgeti(freqs[id], pair);
+            if (place < 0) hmput(freqs[id], pair, 1);
+            else freqs[id][place].value += 1;
         }
 
         pthread_barrier_wait(&collect_freqs_stop);
@@ -163,11 +147,7 @@ int main(int argc, char **argv)
     }
 
 #ifdef ENABLE_THREADS
-    int ret = pthread_mutex_init(&tokens_in_cursor_mutex, NULL);
-    if (ret != 0) {
-        fprintf(stderr, "ERROR: could not initialize tokens_in_cursor_mutex: %s\n", strerror(ret));
-        return 1;
-    }
+    int ret;
 
     ret = pthread_barrier_init(&collect_freqs_start, NULL, THREAD_COUNT + 1);
     if (ret != 0) {
@@ -210,10 +190,6 @@ int main(int argc, char **argv)
                 else merged_freq[place].value += 1;
             }
 #else
-            pthread_mutex_lock(&tokens_in_cursor_mutex);
-            tokens_in_cursor = 0;
-            pthread_mutex_unlock(&tokens_in_cursor_mutex);
-
             pthread_barrier_wait(&collect_freqs_start);
             pthread_barrier_wait(&collect_freqs_stop);
 
