@@ -76,7 +76,7 @@ pthread_mutex_t tokens_in_cursor_mutex = {0};
 
 Freq *freqs[THREAD_COUNT] = {0};
 pthread_t threads[THREAD_COUNT] = {0};
-sem_t collect_freqs_start = {0};
+pthread_barrier_t collect_freqs_start = {0};
 pthread_barrier_t collect_freqs_stop = {0};
 
 void *freq_collector(void *arg)
@@ -84,11 +84,7 @@ void *freq_collector(void *arg)
     size_t id = (size_t)(arg);
 
     while (true) {
-        int ret = sem_wait(&collect_freqs_start);
-        if (ret == -1) {
-            fprintf(stderr, "ERROR: could not wait on semaphore: %s\n", strerror(errno));
-            exit(1);
-        }
+        pthread_barrier_wait(&collect_freqs_start);
 
         hmfree(freqs[id]);
         while (true) {
@@ -173,7 +169,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    ret = sem_init(&collect_freqs_start, 0, 0);
+    ret = pthread_barrier_init(&collect_freqs_start, NULL, THREAD_COUNT + 1);
     if (ret != 0) {
         fprintf(stderr, "ERROR: could not initialize collect_freqs_start: %s\n", strerror(ret));
         return 1;
@@ -218,7 +214,7 @@ int main(int argc, char **argv)
             tokens_in_cursor = 0;
             pthread_mutex_unlock(&tokens_in_cursor_mutex);
 
-            for(size_t i = 0; i < THREAD_COUNT; ++i) sem_post(&collect_freqs_start);
+            pthread_barrier_wait(&collect_freqs_start);
             pthread_barrier_wait(&collect_freqs_stop);
 
             for (size_t id = 0; id < THREAD_COUNT; ++id) {
