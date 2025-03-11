@@ -9,6 +9,8 @@
 #include "nob.h"
 #undef rename
 
+#define BPE_PRELUDE_SIZE 256
+
 // TODO: support unicode
 // Right now we assume everything is ASCII.
 

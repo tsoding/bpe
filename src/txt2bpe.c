@@ -171,7 +171,7 @@ int main(int argc, char **argv)
     // 69  => { .l = 69, .r = ??? }
     // ...
     // 255 => { .l = 255, .r = ??? }
-    for (uint32_t i = 0; i < 256; ++i) {
+    for (uint32_t i = 0; i < BPE_PRELUDE_SIZE; ++i) {
         da_append(&pairs, ((Pair) {.l = i}));
     }
 
