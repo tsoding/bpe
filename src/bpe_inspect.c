@@ -7,18 +7,6 @@ void usage(const char *program_name)
     fprintf(stderr, "Usage: %s <input.bpe>\n", program_name);
 }
 
-// TODO: employ memoization so to not rerender the same tokens over and over again
-void render_token(Pairs pairs, uint32_t token, String_Builder *sb)
-{
-    if (token == pairs.items[token].l) {
-        da_append(sb, (char)token);
-        return;
-    }
-
-    render_token(pairs, pairs.items[token].l, sb);
-    render_token(pairs, pairs.items[token].r, sb);
-}
-
 int main(int argc, char **argv)
 {
     const char *program_name = shift(argv, argc);

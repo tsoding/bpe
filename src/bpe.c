@@ -42,5 +42,19 @@ bool load_pairs(const char *file_path, Pairs *pairs, String_Builder *sb)
     return true;
 }
 
+void render_token(Pairs pairs, uint32_t token, String_Builder *sb)
+{
+    assert(token < pairs.count);
+
+    // TODO: employ memoization so to not rerender the same tokens over and over again
+    if (token == pairs.items[token].l) {
+        da_append(sb, (char)token);
+        return;
+    }
+
+    render_token(pairs, pairs.items[token].l, sb);
+    render_token(pairs, pairs.items[token].r, sb);
+}
+
 #define NOB_IMPLEMENTATION
 #include "nob.h"
