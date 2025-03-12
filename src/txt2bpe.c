@@ -46,9 +46,9 @@ void usage(void)
 
 void report_progress(size_t iteration, Tokens tokens_in, Pairs pairs)
 {
-    printf("INFO: iteration %zu\n", iteration);
-    printf("    Text tokens count: %zu\n", tokens_in.count);
-    printf("    BPE table size: %zu\n", pairs.count);
+    printf("INFO: -- ITERATION %zu --\n", iteration);
+    printf("INFO: Text tokens count: %zu\n", tokens_in.count);
+    printf("INFO: BPE table size: %zu\n", pairs.count);
 }
 
 double get_secs(void)
@@ -154,6 +154,12 @@ int main(int argc, char **argv)
     }
     const char *output_dir_path = *output_dir;
 
+    int output_dir_exists = file_exists(output_dir_path);
+    if (output_dir_exists < 0) return 1;
+    if (output_dir_exists) {
+        fprintf(stderr, "ERROR: Directory %s already exists, delete it or rename it to not lose any data in it\n", output_dir_path);
+        return 1;
+    }
     if (!mkdir_if_not_exists(output_dir_path)) return 1;
 
     String_Builder sb = {0};
