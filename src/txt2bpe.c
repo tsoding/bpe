@@ -133,6 +133,50 @@ void create_freq_collector_thread(Freq_Collector_Thread_Context *ctx, size_t id,
     assert(ret == 0);
 }
 
+typedef struct {
+    Freq_Collector_Thread_Context *ctxs;
+    size_t ctxs_count;
+    pthread_barrier_t start;
+    pthread_barrier_t stop;
+} Freq_Collector;
+
+void freq_collector_init(Freq_Collector *fc, size_t threads_count, const Tokens *tokens_in)
+{
+    fc->ctxs_count = threads_count;
+
+    int ret;
+    ret = pthread_barrier_init(&fc->start, NULL, fc->ctxs_count + 1);
+    assert(ret == 0);
+    ret = pthread_barrier_init(&fc->stop, NULL, fc->ctxs_count + 1);
+    assert(ret == 0);
+
+    fc->ctxs = calloc(threads_count, sizeof(*fc->ctxs));
+    assert(fc->ctxs != NULL);
+    for (size_t id = 0; id < threads_count; ++id) {
+        create_freq_collector_thread(&fc->ctxs[id], id, fc->ctxs_count, tokens_in, &fc->start, &fc->stop);
+    }
+}
+
+Freq *freq_collector_go(Freq_Collector *fc)
+{
+    pthread_barrier_wait(&fc->start);
+    pthread_barrier_wait(&fc->stop);
+
+    Freq *merged_freq = NULL;
+
+    for (size_t id = 0; id < fc->ctxs_count; ++id) {
+        size_t n = hmlen(fc->ctxs[id].freqs);
+        for (size_t i = 0; i < n; ++i) {
+            Pair key = fc->ctxs[id].freqs[i].key;
+            ptrdiff_t place = hmgeti(merged_freq, key);
+            if (place < 0) hmputs(merged_freq, fc->ctxs[id].freqs[i]);
+            else merged_freq[place].value += fc->ctxs[id].freqs[i].value;
+        }
+    }
+
+    return merged_freq;
+}
+
 bool dump_state(size_t iteration, const char *output_dir_path, Pairs pairs, Tokens tokens)
 {
     const char *output_file_path = temp_sprintf("%s/%d.bpe", output_dir_path, iteration);
@@ -216,28 +260,8 @@ int main(int argc, char **argv)
 
 
 #ifdef ENABLE_THREADS
-    pthread_barrier_t collect_freqs_start = {0};
-    pthread_barrier_t collect_freqs_stop = {0};
-    int ret;
-
-    ret = pthread_barrier_init(&collect_freqs_start, NULL, (*threads_count) + 1);
-    if (ret != 0) {
-        fprintf(stderr, "ERROR: could not initialize collect_freqs_start: %s\n", strerror(ret));
-        return 1;
-    }
-
-    ret = pthread_barrier_init(&collect_freqs_stop, NULL, (*threads_count) + 1);
-    if (ret != 0) {
-        fprintf(stderr, "ERROR: could not initialize collect_freqs_stop: %s\n", strerror(ret));
-        return 1;
-    }
-
-    Freq_Collector_Thread_Context *ctxs = calloc(*threads_count, sizeof(*ctxs));
-    assert(ctxs != NULL);
-    for (size_t id = 0; id < *threads_count; ++id) {
-        create_freq_collector_thread(&ctxs[id], id, *threads_count, &tokens_in, &collect_freqs_start, &collect_freqs_stop);
-    }
-
+    Freq_Collector fc = {0};
+    freq_collector_init(&fc, *threads_count, &tokens_in);
 #endif // ENABLE_THREADS
 
     size_t iteration = 0;
@@ -258,18 +282,7 @@ int main(int argc, char **argv)
                 else merged_freq[place].value += 1;
             }
 #else
-            pthread_barrier_wait(&collect_freqs_start);
-            pthread_barrier_wait(&collect_freqs_stop);
-
-            for (size_t id = 0; id < *threads_count; ++id) {
-                size_t n = hmlen(ctxs[id].freqs);
-                for (size_t i = 0; i < n; ++i) {
-                    Pair key = ctxs[id].freqs[i].key;
-                    ptrdiff_t place = hmgeti(merged_freq, key);
-                    if (place < 0) hmputs(merged_freq, ctxs[id].freqs[i]);
-                    else merged_freq[place].value += ctxs[id].freqs[i].value;
-                }
-            }
+            merged_freq = freq_collector_go(&fc);
 #endif
         PROFILE_END("Collecting stats");
 
