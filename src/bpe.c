@@ -1,5 +1,11 @@
 #include "bpe.h"
 
+bool dump_tokens(const char *file_path, Tokens tokens)
+{
+    // TODO: introduce magic and version to the format of the tokens
+    return write_entire_file(file_path, tokens.items, tokens.count*sizeof(*tokens.items));
+}
+
 bool dump_pairs(const char *file_path, Pairs pairs)
 {
     // TODO: introduce magic and version to the format of the pairs

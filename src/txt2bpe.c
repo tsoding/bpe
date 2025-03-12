@@ -107,10 +107,27 @@ void *freq_collector_thread(void *arg)
     UNREACHABLE("freq_collector_thread");
 }
 
+bool dump_state(size_t iteration, const char *output_dir_path, Pairs pairs, Tokens tokens)
+{
+    const char *output_file_path = temp_sprintf("%s/%d.bpe", output_dir_path, iteration);
+    if (!dump_pairs(output_file_path, pairs)) return false;
+    printf("INFO: generated %s\n", output_file_path);
+
+    output_file_path = temp_sprintf("%s/%d.tkn", output_dir_path, iteration);
+    if (!dump_tokens(output_file_path, tokens)) return false;
+    printf("INFO: generated %s\n", output_file_path);
+
+    return true;
+}
+
 int main(int argc, char **argv)
 {
-    uint64_t *report_freq = flag_uint64("report-freq", 10, "After how many iterations repor the progress");
+    uint64_t *report_freq = flag_uint64("report-freq", 10, "Per how many iterations report the progress");
+    uint64_t *dump_freq = flag_uint64("dump-freq", 10, "Per how many iterations we dump the state of the process");
+    uint64_t *term_freq = flag_uint64("term-freq", 1, "Termination pair frequency");
     bool *help = flag_bool("help", false, "Print this help");
+    char **input_file = flag_str("input-file", NULL, "Input text file (MANDATORY)");
+    char **output_dir = flag_str("output-dir", NULL, "Output directory (MANDATORY)");
 
     if (!flag_parse(argc, argv)) {
         usage();
@@ -123,22 +140,20 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    int rest_argc = flag_rest_argc();
-    char **rest_argv = flag_rest_argv();
-
-    if (rest_argc <= 0) {
+    if (*input_file == NULL) {
         usage();
-        fprintf(stderr, "ERROR: no input is provided\n");
+        fprintf(stderr, "ERROR: no -input-file is provided\n");
         return 1;
     }
-    const char *input_file_path = shift(rest_argv, rest_argc);
+    const char *input_file_path = *input_file;
 
-    if (rest_argc <= 0) {
+    if (*output_dir == NULL) {
         usage();
-        fprintf(stderr, "ERROR: no output is provided\n");
-        return 1;
+        fprintf(stderr, "ERROR: no -output-dir is provided\n");
     }
-    const char *output_file_path = shift(rest_argv, rest_argc);
+    const char *output_dir_path = *output_dir;
+
+    if (!mkdir_if_not_exists(output_dir_path)) return 1;
 
     String_Builder sb = {0};
     Freq *merged_freq = NULL;
@@ -187,11 +202,10 @@ int main(int argc, char **argv)
 #endif // ENABLE_THREADS
 
 
-    // TODO: periodically dump the pairs during the process
-    // TODO: paralellize the process
     size_t iteration = 0;
     for (;; ++iteration) {
         if (iteration%(*report_freq) == 0) report_progress(iteration, tokens_in, pairs);
+        if (iteration%(*dump_freq)   == 0) if (!dump_state(iteration, output_dir_path, pairs, tokens_in)) return 1;
 
         PROFILE_BEGIN();
             hmfree(merged_freq);
@@ -230,7 +244,7 @@ int main(int argc, char **argv)
             }
         PROFILE_END("Finding most frequent pairs");
 
-        if (merged_freq[max_index].value <= 1) break; // compression is done
+        if (merged_freq[max_index].value <= (*term_freq)) break; // compression is done
 
         da_append(&pairs, merged_freq[max_index].key);
 
@@ -256,9 +270,7 @@ int main(int argc, char **argv)
         swap(Tokens, tokens_in, tokens_out);
     }
     report_progress(iteration, tokens_in, pairs);
-
-    if (!dump_pairs(output_file_path, pairs)) return 1;
-    printf("INFO: generated %s\n", output_file_path);
+    if (!dump_state(iteration, output_dir_path, pairs, tokens_in)) return 1;
 
     return 0;
 }
