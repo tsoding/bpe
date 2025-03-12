@@ -4,10 +4,11 @@
 #include <time.h>
 
 #include <pthread.h>
-#include <semaphore.h>
 
 #define STB_DS_IMPLEMENTATION
 #include "stb_ds.h"
+#define FLAG_IMPLEMENTATION
+#include "flag.h"
 
 #include "bpe.h"
 
@@ -36,9 +37,11 @@ typedef struct {
         (y) = t; \
     } while(0)
 
-void usage(const char *program_name)
+void usage(void)
 {
-    fprintf(stderr, "Usage: %s <input.txt> <output.bpe>\n", program_name);
+    fprintf(stderr, "Usage: %s [OPTIONS] [--] <input.txt> <output.bpe>\n", flag_program_name());
+    fprintf(stderr, "OPTIONS:\n");
+    flag_print_options(stderr);
 }
 
 void report_progress(size_t iteration, Tokens tokens_in, Pairs pairs)
@@ -57,7 +60,7 @@ double get_secs(void)
 }
 
 double begin_secs;
-#if 1
+#if 0
     #define PROFILE_BEGIN() begin_secs = get_secs();
     #define PROFILE_END(label) printf("%s: %lfsecs\n", (label), get_secs() - begin_secs);
 #else
@@ -67,8 +70,6 @@ double begin_secs;
 
 #define ENABLE_THREADS
 #define THREAD_COUNT 16
-#define REPORT_FREQ 1
-#define FREQ_COLLECTION_CHUNK_SIZE (512*1024)
 Tokens tokens_in = {0};
 
 Freq *freqs[THREAD_COUNT] = {0};
@@ -76,7 +77,7 @@ pthread_t threads[THREAD_COUNT] = {0};
 pthread_barrier_t collect_freqs_start = {0};
 pthread_barrier_t collect_freqs_stop = {0};
 
-void *freq_collector(void *arg)
+void *freq_collector_thread(void *arg)
 {
     size_t id = (size_t)(arg);
 
@@ -103,26 +104,41 @@ void *freq_collector(void *arg)
 
         pthread_barrier_wait(&collect_freqs_stop);
     }
-    UNREACHABLE("freq_collector");
+    UNREACHABLE("freq_collector_thread");
 }
 
 int main(int argc, char **argv)
 {
-    const char *program_name = shift(argv, argc);
+    uint64_t *report_freq = flag_uint64("report-freq", 10, "After how many iterations repor the progress");
+    bool *help = flag_bool("help", false, "Print this help");
 
-    if (argc <= 0) {
-        usage(program_name);
+    if (!flag_parse(argc, argv)) {
+        usage();
+        flag_print_error(stderr);
+        return 1;
+    }
+
+    if (*help) {
+        usage();
+        return 0;
+    }
+
+    int rest_argc = flag_rest_argc();
+    char **rest_argv = flag_rest_argv();
+
+    if (rest_argc <= 0) {
+        usage();
         fprintf(stderr, "ERROR: no input is provided\n");
         return 1;
     }
-    const char *input_file_path = shift(argv, argc);
+    const char *input_file_path = shift(rest_argv, rest_argc);
 
-    if (argc <= 0) {
-        usage(program_name);
+    if (rest_argc <= 0) {
+        usage();
         fprintf(stderr, "ERROR: no output is provided\n");
         return 1;
     }
-    const char *output_file_path = shift(argv, argc);
+    const char *output_file_path = shift(rest_argv, rest_argc);
 
     String_Builder sb = {0};
     Freq *merged_freq = NULL;
@@ -162,7 +178,7 @@ int main(int argc, char **argv)
     }
 
     for (size_t id = 0; id < THREAD_COUNT; ++id) {
-        ret = pthread_create(&threads[id], NULL, freq_collector, (void*)id);
+        ret = pthread_create(&threads[id], NULL, freq_collector_thread, (void*)id);
         if (ret != 0) {
             fprintf(stderr, "ERROR: could not create thread: %s\n", strerror(ret));
             return 1;
@@ -175,7 +191,7 @@ int main(int argc, char **argv)
     // TODO: paralellize the process
     size_t iteration = 0;
     for (;; ++iteration) {
-        if (iteration%REPORT_FREQ == 0) report_progress(iteration, tokens_in, pairs);
+        if (iteration%(*report_freq) == 0) report_progress(iteration, tokens_in, pairs);
 
         PROFILE_BEGIN();
             hmfree(merged_freq);
