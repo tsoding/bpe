@@ -80,7 +80,7 @@ typedef struct {
     pthread_barrier_t *stop;
 } Freq_Collector_Thread_Context;
 
-void *freq_collector_thread(void *arg)
+void *freq_collector_thread_routine(void *arg)
 {
     Freq_Collector_Thread_Context *ctx = arg;
 
@@ -107,7 +107,7 @@ void *freq_collector_thread(void *arg)
 
         pthread_barrier_wait(ctx->stop);
     }
-    UNREACHABLE("freq_collector_thread");
+    UNREACHABLE("freq_collector_thread_routine");
 }
 
 void create_freq_collector_thread(Freq_Collector_Thread_Context *ctx, size_t id, size_t thread_count, const Tokens *tokens_in, pthread_barrier_t *start, pthread_barrier_t *stop)
@@ -129,7 +129,7 @@ void create_freq_collector_thread(Freq_Collector_Thread_Context *ctx, size_t id,
     memset(&ctx->thread, 0, sizeof(ctx->thread));
     ctx->start = start;
     ctx->stop = stop;
-    int ret = pthread_create(&ctx->thread, NULL, freq_collector_thread, ctx);
+    int ret = pthread_create(&ctx->thread, NULL, freq_collector_thread_routine, ctx);
     assert(ret == 0);
 }
 
