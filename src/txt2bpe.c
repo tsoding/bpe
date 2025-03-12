@@ -177,6 +177,24 @@ Freq *freq_collector_go(Freq_Collector *fc)
     return merged_freq;
 }
 
+Freq *collect_freqs(Tokens tokens_in)
+{
+    Freq *freq = NULL;
+
+    for (size_t i = 0; i < tokens_in.count - 1; ++i) {
+        Pair pair = {
+            .l = tokens_in.items[i],
+            .r = tokens_in.items[i + 1]
+        };
+        ptrdiff_t place = hmgeti(freq, pair);
+        if (place < 0) hmput(freq, pair, 1);
+        else freq[place].value += 1;
+    }
+
+    return freq;
+}
+
+
 bool dump_state(size_t iteration, const char *output_dir_path, Pairs pairs, Tokens tokens)
 {
     const char *output_file_path = temp_sprintf("%s/%d.bpe", output_dir_path, iteration);
@@ -236,7 +254,7 @@ int main(int argc, char **argv)
     if (!mkdir_if_not_exists(output_dir_path)) return 1;
 
     String_Builder sb = {0};
-    Freq *merged_freq = NULL;
+    Freq *freq = NULL;
     Pairs pairs = {0};
 
     Tokens tokens_in = {0};
@@ -270,34 +288,26 @@ int main(int argc, char **argv)
         if (iteration%(*dump_freq)   == 0) if (!dump_state(iteration, output_dir_path, pairs, tokens_in)) return 1;
 
         PROFILE_BEGIN();
-            hmfree(merged_freq);
+            hmfree(freq);
 #ifndef ENABLE_THREADS
-            for (size_t i = 0; i < tokens_in.count - 1; ++i) {
-                Pair pair = {
-                    .l = tokens_in.items[i],
-                    .r = tokens_in.items[i + 1]
-                };
-                ptrdiff_t place = hmgeti(merged_freq, pair);
-                if (place < 0) hmput(merged_freq, pair, 1);
-                else merged_freq[place].value += 1;
-            }
+            freq = collect_freqs(tokens_in);
 #else
-            merged_freq = freq_collector_go(&fc);
+            freq = freq_collector_go(&fc);
 #endif
         PROFILE_END("Collecting stats");
 
         PROFILE_BEGIN();
             ptrdiff_t max_index = 0;
-            for (ptrdiff_t i = 1; i < hmlen(merged_freq); ++i) {
-                if (merged_freq[i].value > merged_freq[max_index].value) {
+            for (ptrdiff_t i = 1; i < hmlen(freq); ++i) {
+                if (freq[i].value > freq[max_index].value) {
                     max_index = i;
                 }
             }
         PROFILE_END("Finding most frequent pairs");
 
-        if (merged_freq[max_index].value <= (*term_freq)) break; // compression is done
+        if (freq[max_index].value <= (*term_freq)) break; // compression is done
 
-        da_append(&pairs, merged_freq[max_index].key);
+        da_append(&pairs, freq[max_index].key);
 
         PROFILE_BEGIN();
             tokens_out.count = 0;
@@ -307,7 +317,7 @@ int main(int argc, char **argv)
                     i += 1;
                 } else {
                     Pair pair = {.l = tokens_in.items[i], .r = tokens_in.items[i + 1]};
-                    if (memcmp(&pair, &merged_freq[max_index].key, sizeof(pair)) == 0) {
+                    if (memcmp(&pair, &freq[max_index].key, sizeof(pair)) == 0) {
                         da_append(&tokens_out, pairs.count - 1);
                         i += 2;
                     } else {
