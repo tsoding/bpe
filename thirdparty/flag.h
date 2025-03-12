@@ -1,4 +1,4 @@
-// flag.h -- command-line flag parsing
+// flag.h -- v1.0.0 -- command-line flag parsing
 //
 //   Inspired by Go's flag module: https://pkg.go.dev/flag
 //
@@ -378,7 +378,16 @@ void flag_print_error(FILE *stream)
     }
 }
 
-#endif
+#endif // FLAG_IMPLEMENTATION
+
+/*
+   Revision history:
+
+     1.0.0 (2025-03-03) Initial release
+                        Save program_name in the context
+
+*/
+
 // Copyright 2021 Alexey Kutepov <reximkut@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy

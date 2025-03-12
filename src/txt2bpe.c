@@ -39,7 +39,7 @@ typedef struct {
 
 void usage(void)
 {
-    fprintf(stderr, "Usage: %s [OPTIONS] [--] <input.txt> <output.bpe>\n", flag_program_name());
+    fprintf(stderr, "Usage: %s [OPTIONS] [--] <input.txt> <output/>\n", flag_program_name());
     fprintf(stderr, "OPTIONS:\n");
     flag_print_options(stderr);
 }
@@ -142,14 +142,14 @@ int main(int argc, char **argv)
 
     if (*input_file == NULL) {
         usage();
-        fprintf(stderr, "ERROR: no -input-file is provided\n");
+        fprintf(stderr, "ERROR: no %s is provided\n", flag_name(input_file));
         return 1;
     }
     const char *input_file_path = *input_file;
 
     if (*output_dir == NULL) {
         usage();
-        fprintf(stderr, "ERROR: no -output-dir is provided\n");
+        fprintf(stderr, "ERROR: no %s is provided\n", flag_name(output_dir));
     }
     const char *output_dir_path = *output_dir;
 
