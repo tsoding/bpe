@@ -78,11 +78,11 @@ typedef struct {
     pthread_t thread;
     pthread_barrier_t *start;
     pthread_barrier_t *stop;
-} Freq_Collector_Context;
+} Freq_Collector_Thread_Context;
 
 void *freq_collector_thread(void *arg)
 {
-    Freq_Collector_Context *ctx = arg;
+    Freq_Collector_Thread_Context *ctx = arg;
 
     while (true) {
         pthread_barrier_wait(ctx->start);
@@ -110,9 +110,9 @@ void *freq_collector_thread(void *arg)
     UNREACHABLE("freq_collector_thread");
 }
 
-void create_freq_collector_thread(Freq_Collector_Context *ctx, size_t id, size_t thread_count, const Tokens *tokens_in, pthread_barrier_t *start, pthread_barrier_t *stop)
+void create_freq_collector_thread(Freq_Collector_Thread_Context *ctx, size_t id, size_t thread_count, const Tokens *tokens_in, pthread_barrier_t *start, pthread_barrier_t *stop)
 {
-    static_assert(sizeof(Freq_Collector_Context) ==
+    static_assert(sizeof(Freq_Collector_Thread_Context) ==
                     sizeof(ctx->id)
                   + sizeof(ctx->thread_count)
                   + sizeof(ctx->freqs)
@@ -120,7 +120,7 @@ void create_freq_collector_thread(Freq_Collector_Context *ctx, size_t id, size_t
                   + sizeof(ctx->thread)
                   + sizeof(ctx->start)
                   + sizeof(ctx->stop),
-                  "Size of Freq_Collector_Context have changed (or you are compiling not on x86_64). "
+                  "Size of Freq_Collector_Thread_Context have changed (or you are compiling not on x86_64). "
                   "You may want to update the constructor below.");
     ctx->id = id;
     ctx->thread_count = thread_count;
@@ -232,7 +232,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    Freq_Collector_Context *ctxs = calloc(*threads_count, sizeof(*ctxs));
+    Freq_Collector_Thread_Context *ctxs = calloc(*threads_count, sizeof(*ctxs));
     assert(ctxs != NULL);
     for (size_t id = 0; id < *threads_count; ++id) {
         create_freq_collector_thread(&ctxs[id], id, *threads_count, &tokens_in, &collect_freqs_start, &collect_freqs_stop);
