@@ -122,12 +122,13 @@ bool dump_state(size_t iteration, const char *output_dir_path, Pairs pairs, Toke
 
 int main(int argc, char **argv)
 {
-    uint64_t *report_freq = flag_uint64("report-freq", 10, "Per how many iterations report the progress");
-    uint64_t *dump_freq = flag_uint64("dump-freq", 10, "Per how many iterations we dump the state of the process");
-    uint64_t *term_freq = flag_uint64("term-freq", 1, "Termination pair frequency");
-    bool *help = flag_bool("help", false, "Print this help");
-    char **input_file = flag_str("input-file", NULL, "Input text file (MANDATORY)");
-    char **output_dir = flag_str("output-dir", NULL, "Output directory (MANDATORY)");
+    uint64_t *report_freq    = flag_uint64("report-freq", 10, "Per how many iterations report the progress");
+    uint64_t *dump_freq      = flag_uint64("dump-freq", 10, "Per how many iterations we dump the state of the process");
+    uint64_t *term_freq      = flag_uint64("term-freq", 1, "Termination pair frequency");
+    uint64_t *max_iterations = flag_uint64("max-iterations", 0, "Maximum amount of iterations. 0 means no limit.");
+    bool *help               = flag_bool("help", false, "Print this help");
+    char **input_file        = flag_str("input-file", NULL, "Input text file (MANDATORY)");
+    char **output_dir        = flag_str("output-dir", NULL, "Output directory (MANDATORY)");
 
     if (!flag_parse(argc, argv)) {
         usage();
@@ -201,9 +202,8 @@ int main(int argc, char **argv)
     }
 #endif // ENABLE_THREADS
 
-
     size_t iteration = 0;
-    for (;; ++iteration) {
+    for (; *max_iterations == 0 || iteration < *max_iterations ; ++iteration) {
         if (iteration%(*report_freq) == 0) report_progress(iteration, tokens_in, pairs);
         if (iteration%(*dump_freq)   == 0) if (!dump_state(iteration, output_dir_path, pairs, tokens_in)) return 1;
 
