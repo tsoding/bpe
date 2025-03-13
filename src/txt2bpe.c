@@ -39,7 +39,7 @@ typedef struct {
 
 void usage(void)
 {
-    fprintf(stderr, "Usage: %s [OPTIONS] [--] <input.txt> <output/>\n", flag_program_name());
+    fprintf(stderr, "Usage: %s [OPTIONS]\n", flag_program_name());
     fprintf(stderr, "OPTIONS:\n");
     flag_print_options(stderr);
 }
