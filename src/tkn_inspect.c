@@ -13,7 +13,10 @@ int main(int argc, char **argv)
 {
     char **bpe_path = flag_str("bpe", NULL, "Path to the .bpe file that contains table of pairs (MANDATORY)");
     char **tkn_path = flag_str("tkn", NULL, "Path to the .tkn file that contains the sequence of tokens (MANDATORY)");
-    bool *help = flag_bool("help", false, "Print this help");
+    bool *ids       = flag_bool("ids", false, "Print the ids of the tokens");
+    bool *render    = flag_bool("render", false, "Render tokens as text back");
+    bool *split     = flag_bool("split", false, "When render is enabled, split tokens with bars |");
+    bool *help      = flag_bool("help", false, "Print this help");
 
     if (!flag_parse(argc, argv)) {
         usage();
@@ -53,6 +56,25 @@ int main(int argc, char **argv)
 
     printf("OK: Loaded %zu tokens from %s\n", tokens.count, *tkn_path);
     printf("OK: Loaded %zu pairs from %s\n", pairs.count, *bpe_path);
+
+    if (*ids) {
+        printf("------------------------------\n");
+        for (size_t i = 0; i < tokens.count; ++i) {
+            printf("%u\n", tokens.items[i]);
+        }
+    }
+
+    if (*render) {
+        printf("------------------------------\n");
+        for (size_t i = 0; i < tokens.count; ++i) {
+            sb.count = 0;
+            render_token(pairs, tokens.items[i], &sb);
+            sb_append_null(&sb);
+            printf("%s", sb.items);
+            if (*split) printf("|");
+        }
+        printf("\n");
+    }
 
     return 0;
 }
