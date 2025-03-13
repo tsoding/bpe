@@ -44,11 +44,18 @@ void usage(void)
     flag_print_options(stderr);
 }
 
-void report_progress(size_t iteration, Tokens tokens_in, Pairs pairs)
+void report_progress(size_t iteration, Tokens tokens_in, Pairs pairs, double *profile_samples, size_t profile_samples_count)
 {
+    double average_profile_samples = 0.0f;
+    for (size_t i = 0; i < profile_samples_count; ++i) {
+        average_profile_samples += profile_samples[i];
+    }
+    average_profile_samples /= profile_samples_count;
+
     printf("INFO: -- ITERATION %zu --\n", iteration);
-    printf("INFO: Text tokens count: %zu\n", tokens_in.count);
-    printf("INFO: BPE table size: %zu\n", pairs.count);
+    printf("INFO:   Token count: %zu\n", tokens_in.count);
+    printf("INFO:   Pair count:  %zu\n", pairs.count);
+    printf("INFO:   Time:        %lfsecs (avg. of %zu iter.)\n", average_profile_samples, profile_samples_count);
 }
 
 double get_secs(void)
@@ -58,15 +65,6 @@ double get_secs(void)
     assert(ret == 0);
     return (double)tp.tv_sec + (double)tp.tv_nsec*1e-9;
 }
-
-double begin_secs;
-#if 0
-    #define PROFILE_BEGIN() begin_secs = get_secs();
-    #define PROFILE_END(label) printf("%s: %lfsecs\n", (label), get_secs() - begin_secs);
-#else
-    #define PROFILE_BEGIN(...)
-    #define PROFILE_END(...)
-#endif
 
 #define ENABLE_THREADS
 
@@ -194,7 +192,6 @@ Freq *collect_freqs(Tokens tokens_in)
     return freq;
 }
 
-
 bool dump_state(size_t iteration, const char *output_dir_path, Pairs pairs, Tokens tokens)
 {
     const char *output_file_path = temp_sprintf("%s/%d.bpe", output_dir_path, iteration);
@@ -276,40 +273,39 @@ int main(int argc, char **argv)
         da_append(&tokens_in, (uint8_t)sb.items[i]);
     }
 
-
 #ifdef ENABLE_THREADS
     Freq_Collector fc = {0};
     freq_collector_init(&fc, *threads_count, &tokens_in);
 #endif // ENABLE_THREADS
 
+    double *profile_samples = malloc((*report_freq)*sizeof(*profile_samples));
+    assert(profile_samples != NULL);
+
     size_t iteration = 0;
     for (; *max_iterations == 0 || iteration < *max_iterations ; ++iteration) {
-        if (iteration%(*report_freq) == 0) report_progress(iteration, tokens_in, pairs);
+        if (iteration%(*report_freq) == 0) report_progress(iteration, tokens_in, pairs, profile_samples, *report_freq);
         if (iteration%(*dump_freq)   == 0) if (!dump_state(iteration, output_dir_path, pairs, tokens_in)) return 1;
 
-        PROFILE_BEGIN();
-            hmfree(freq);
-#ifndef ENABLE_THREADS
-            freq = collect_freqs(tokens_in);
-#else
-            freq = freq_collector_go(&fc);
-#endif
-        PROFILE_END("Collecting stats");
+        double begin_secs = get_secs();
 
-        PROFILE_BEGIN();
+            hmfree(freq);
+#ifdef ENABLE_THREADS
+            freq = freq_collector_go(&fc);
+#else
+            freq = collect_freqs(tokens_in);
+#endif
+
             ptrdiff_t max_index = 0;
             for (ptrdiff_t i = 1; i < hmlen(freq); ++i) {
                 if (freq[i].value > freq[max_index].value) {
                     max_index = i;
                 }
             }
-        PROFILE_END("Finding most frequent pairs");
 
-        if (freq[max_index].value <= (*term_freq)) break; // compression is done
+            if (freq[max_index].value <= (*term_freq)) break; // compression is done
 
-        da_append(&pairs, freq[max_index].key);
+            da_append(&pairs, freq[max_index].key);
 
-        PROFILE_BEGIN();
             tokens_out.count = 0;
             for (size_t i = 0; i < tokens_in.count; ) {
                 if (i + 1 >= tokens_in.count) {
@@ -326,11 +322,14 @@ int main(int argc, char **argv)
                     }
                 }
             }
-        PROFILE_END("Replacing the frequent pair");
+
+        profile_samples[iteration%(*report_freq)] = get_secs() - begin_secs;
 
         swap(Tokens, tokens_in, tokens_out);
     }
-    report_progress(iteration, tokens_in, pairs);
+
+    size_t remainder_iterations = iteration%(*report_freq);
+    report_progress(iteration, tokens_in, pairs, profile_samples, remainder_iterations == 0 ? *report_freq : remainder_iterations);
     if (!dump_state(iteration, output_dir_path, pairs, tokens_in)) return 1;
 
     return 0;
