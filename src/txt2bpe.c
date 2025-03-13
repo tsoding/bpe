@@ -66,7 +66,8 @@ double get_secs(void)
     return (double)tp.tv_sec + (double)tp.tv_nsec*1e-9;
 }
 
-#define ENABLE_THREADS
+// #define ENABLE_THREADS
+#define INPLACE
 
 typedef struct {
     size_t id;
@@ -281,6 +282,15 @@ int main(int argc, char **argv)
     double *profile_samples = malloc((*report_freq)*sizeof(*profile_samples));
     assert(profile_samples != NULL);
 
+#ifdef INPLACE
+            // hmfree(freq);
+#ifdef ENABLE_THREADS
+            freq = freq_collector_go(&fc);
+#else
+            freq = collect_freqs(tokens_in);
+#endif // ENABLE_THREADS
+#endif // INPLACE
+
     size_t iteration = 0;
     for (; *max_iterations == 0 || iteration < *max_iterations ; ++iteration) {
         if (iteration%(*report_freq) == 0) report_progress(iteration, tokens_in, pairs, profile_samples, *report_freq);
@@ -288,33 +298,109 @@ int main(int argc, char **argv)
 
         double begin_secs = get_secs();
 
-            hmfree(freq);
+#ifndef INPLACE
+            // hmfree(freq);
 #ifdef ENABLE_THREADS
             freq = freq_collector_go(&fc);
 #else
             freq = collect_freqs(tokens_in);
-#endif
+#endif // ENABLE_THREADS
+#endif // INPLACE
 
             ptrdiff_t max_index = 0;
             for (ptrdiff_t i = 1; i < hmlen(freq); ++i) {
-                if (freq[i].value > freq[max_index].value) {
+                if (freq[i].value > freq[max_index].value || (freq[i].value == freq[max_index].value && memcmp(&freq[i].key, &freq[max_index].key, sizeof(freq[i].key)) > 0)) {
                     max_index = i;
                 }
             }
 
             if (freq[max_index].value <= (*term_freq)) break; // compression is done
 
-            da_append(&pairs, freq[max_index].key);
+            Pair max_pair = freq[max_index].key;
+            uint32_t max_token = pairs.count;
+            da_append(&pairs, max_pair);
 
             tokens_out.count = 0;
+#ifdef INPLACE
+            for (size_t i = 0; i < tokens_in.count; ) {
+                #if 0
+                printf("in:  "); for (size_t j = 0; j < tokens_in.count;  ++j) { printf("%u ", tokens_in.items[j]);  } printf("\n");
+                printf("out: "); for (size_t j = 0; j < tokens_out.count; ++j) { printf("%u ", tokens_out.items[j]); } printf("\n");
+                for (ptrdiff_t i = 0; i < hmlen(freq); ++i) printf("  (%u, %u) => %zu\n", freq[i].key.l, freq[i].key.r, freq[i].value);
+                printf("------------------------------\n");
+                #endif
+                if (i + 1 >= tokens_in.count) {
+                    da_append(&tokens_out, tokens_in.items[i]);
+                    i += 1;
+                } else {
+                    Pair pair;
+                    pair.l = tokens_in.items[i];
+                    pair.r = tokens_in.items[i + 1];
+                    if (memcmp(&pair, &max_pair, sizeof(pair)) == 0) {
+                        ptrdiff_t place;
+                        if (tokens_out.count > 0) {
+                            pair.l = tokens_out.items[tokens_out.count - 1];
+
+                            pair.r = tokens_in.items[i];
+                            place = hmgeti(freq, pair);
+                            if (!(place >= 0)) {
+                                printf("%s:%d: i = %zu, pair = (%u, %u)\n", __FILE__, __LINE__, i, pair.l, pair.r);
+                                abort();
+                            }
+                            assert(freq[place].value > 0);
+                            freq[place].value -= 1;
+                            // TODO: if (freq[place].value == 0) hmdel(freq, piar)
+
+                            pair.r = max_token;
+                            ptrdiff_t place = hmgeti(freq, pair);
+                            if (place < 0) hmput(freq, pair, 1);
+                            else freq[place].value += 1;
+                        }
+
+                        pair = max_pair;
+                        place = hmgeti(freq, pair);
+                        assert(place >= 0);
+                        assert(freq[place].value > 0);
+                        freq[place].value -= 1;
+
+                        da_append(&tokens_out, max_token);
+                        i += 2;
+
+                        //         v
+                        // in:  abcd
+                        // out: aZ
+                        // Z=bc
+                        if (i < tokens_in.count) {
+                            pair.r = tokens_in.items[i];
+
+                            pair.l = tokens_in.items[i-1];
+                            place = hmgeti(freq, pair);
+                            assert(place >= 0);
+                            assert(freq[place].value > 0);
+                            freq[place].value -= 1;
+
+                            pair.l = tokens_out.items[tokens_out.count-1];
+                            ptrdiff_t place = hmgeti(freq, pair);
+                            if (place < 0) hmput(freq, pair, 1);
+                            else freq[place].value += 1;
+                        }
+                    } else {
+                        da_append(&tokens_out, tokens_in.items[i]);
+                        i += 1;
+                    }
+                }
+            }
+#else // INPLACE
             for (size_t i = 0; i < tokens_in.count; ) {
                 if (i + 1 >= tokens_in.count) {
                     da_append(&tokens_out, tokens_in.items[i]);
                     i += 1;
                 } else {
-                    Pair pair = {.l = tokens_in.items[i], .r = tokens_in.items[i + 1]};
-                    if (memcmp(&pair, &freq[max_index].key, sizeof(pair)) == 0) {
-                        da_append(&tokens_out, pairs.count - 1);
+                    Pair pair;
+                    pair.l = tokens_in.items[i];
+                    pair.r = tokens_in.items[i + 1];
+                    if (memcmp(&pair, &max_pair, sizeof(pair)) == 0) {
+                        da_append(&tokens_out, max_token);
                         i += 2;
                     } else {
                         da_append(&tokens_out, tokens_in.items[i]);
@@ -322,6 +408,7 @@ int main(int argc, char **argv)
                     }
                 }
             }
+#endif // INPLACE
 
         profile_samples[iteration%(*report_freq)] = get_secs() - begin_secs;
 
