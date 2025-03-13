@@ -299,7 +299,7 @@ int main(int argc, char **argv)
         double begin_secs = get_secs();
 
 #ifndef INPLACE
-            // hmfree(freq);
+            hmfree(freq);
 #ifdef ENABLE_THREADS
             freq = freq_collector_go(&fc);
 #else
