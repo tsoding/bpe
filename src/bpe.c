@@ -6,6 +6,22 @@ bool dump_tokens(const char *file_path, Tokens tokens)
     return write_entire_file(file_path, tokens.items, tokens.count*sizeof(*tokens.items));
 }
 
+bool load_tokens(const char *file_path, Tokens *tokens, String_Builder *tmp_sb)
+{
+    tmp_sb->count = 0;
+    if (!read_entire_file(file_path, tmp_sb)) return false;
+    if (tmp_sb->count%sizeof(*tokens->items) != 0) {
+        nob_log(ERROR, "%s: file size in bytes (%zu) must be divisible by %zu", file_path, tmp_sb->count, sizeof(*tokens->items));
+        return false;
+    }
+    uint32_t *items = (void*)tmp_sb->items;
+    size_t items_count = tmp_sb->count/sizeof(*tokens->items);
+    for (size_t i = 0; i < items_count; ++i){
+        da_append(tokens, items[i]);
+    }
+    return true;
+}
+
 bool dump_pairs(const char *file_path, Pairs pairs)
 {
     // TODO: introduce magic and version to the format of the pairs
@@ -14,6 +30,7 @@ bool dump_pairs(const char *file_path, Pairs pairs)
 
 bool load_pairs(const char *file_path, Pairs *pairs, String_Builder *tmp_sb)
 {
+    tmp_sb->count = 0;
     if (!read_entire_file(file_path, tmp_sb)) return false;
     if (tmp_sb->count%sizeof(*pairs->items) != 0) {
         nob_log(ERROR, "%s: file size in bytes (%zu) must be divisible by %zu", file_path, tmp_sb->count, sizeof(*pairs->items));
