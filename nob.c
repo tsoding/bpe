@@ -17,6 +17,7 @@ const char *tools[] = {
     "txt2bpe",
     "bpe2dot",
     "bpe_inspect",
+    "bpe_gen",
     "tkn_inspect",
 };
 
