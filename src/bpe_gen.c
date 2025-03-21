@@ -17,6 +17,7 @@ int main(int argc, char **argv)
     bool *help      = flag_bool("help", false, "Print this help message");
     uint64_t *limit = flag_uint64("limit", 100, "Max amount of tokens to generate");
     char **delim    = flag_str("delim", "", "Token delimiter");
+    uint64_t *seed  = flag_uint64("seed", 0, "Random seed (0 to use current time)");
 
     if (!flag_parse(argc, argv)) {
         usage();
@@ -33,6 +34,10 @@ int main(int argc, char **argv)
     if (*help) {
         usage();
         return 0;
+    }
+
+    if (*seed != 0) {
+        srand(*seed);
     }
 
     Pairs pairs = {0};
