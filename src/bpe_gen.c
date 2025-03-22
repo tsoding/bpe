@@ -1,3 +1,4 @@
+// Generate random text based on the BPE table created by txt2bpe.
 #include <time.h>
 #include "bpe.h"
 #define FLAG_IMPLEMENTATION

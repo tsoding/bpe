@@ -1,3 +1,4 @@
+// The code that is shared between all the utilitize of the suite.
 #ifndef BPE_H_
 #define BPE_H_
 

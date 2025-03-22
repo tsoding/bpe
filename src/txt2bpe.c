@@ -1,3 +1,4 @@
+// Generate the BPE table by compressing a text file.
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>

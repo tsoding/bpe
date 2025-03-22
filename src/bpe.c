@@ -1,3 +1,4 @@
+// The code that is shared between all the utilitize of the suite.
 #include "bpe.h"
 
 bool dump_tokens(const char *file_path, Tokens tokens)
