@@ -29,11 +29,11 @@ typedef struct {
     size_t count;
     size_t capacity;
 } Pairs;
-
 bool load_pairs(const char *file_path, Pairs *pairs, String_Builder *tmp_sb);
 bool dump_pairs(const char *file_path, Pairs pairs);
 bool dump_tokens(const char *file_path, Tokens tokens);
 bool load_tokens(const char *file_path, Tokens *tokens, String_Builder *tmp_sb);
 void render_token(Pairs pairs, uint32_t token, String_Builder *sb);
+void c_strlit_escape_bytes(const char *bytes, size_t bytes_size, String_Builder *sb_out);
 
 #endif // BPE_H_
