@@ -31,13 +31,6 @@ typedef struct {
     size_t capacity;
 } Freqs;
 
-#define swap(Type, x, y) \
-    do { \
-        Type t = (x); \
-        (x) = (y); \
-        (y) = t; \
-    } while(0)
-
 void usage(void)
 {
     fprintf(stderr, "Usage: %s [OPTIONS]\n", flag_program_name());

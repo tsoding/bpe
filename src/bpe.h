@@ -37,4 +37,13 @@ bool load_tokens(const char *file_path, Tokens *tokens, String_Builder *tmp_sb);
 void render_token(Pairs pairs, uint32_t token, String_Builder *sb);
 void c_strlit_escape_bytes(const char *bytes, size_t bytes_size, String_Builder *sb_out);
 
+#define swap(Type, x, y) \
+    do {                 \
+        Type *a = &(x);  \
+        Type *b = &(y);  \
+        Type t = *a;     \
+        *a = *b;         \
+        *b = t;          \
+    } while(0)
+
 #endif // BPE_H_
