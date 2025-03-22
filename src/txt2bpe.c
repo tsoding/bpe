@@ -195,11 +195,11 @@ Freq *collect_freqs(Tokens tokens_in)
 
 bool dump_state(size_t iteration, const char *output_dir_path, Pairs pairs, Tokens tokens)
 {
-    const char *output_file_path = temp_sprintf("%s/%d.bpe", output_dir_path, iteration);
+    const char *output_file_path = temp_sprintf("%s/%zu.bpe", output_dir_path, iteration);
     if (!dump_pairs(output_file_path, pairs)) return false;
     printf("INFO: generated %s\n", output_file_path);
 
-    output_file_path = temp_sprintf("%s/%d.tkn", output_dir_path, iteration);
+    output_file_path = temp_sprintf("%s/%zu.tkn", output_dir_path, iteration);
     if (!dump_tokens(output_file_path, tokens)) return false;
     printf("INFO: generated %s\n", output_file_path);
 

@@ -40,7 +40,7 @@ bool load_pairs(const char *file_path, Pairs *pairs, String_Builder *tmp_sb)
     size_t items_count = tmp_sb->count/sizeof(*pairs->items);
 
     if (items_count < BPE_PRELUDE_SIZE) {
-        nob_log(ERROR, "%s: pair count %zu is too small. It must be at least %zu", items_count, file_path, BPE_PRELUDE_SIZE);
+        nob_log(ERROR, "%s: pair count %zu is too small. It must be at least %d", file_path, items_count, BPE_PRELUDE_SIZE);
         return false;
     }
 
