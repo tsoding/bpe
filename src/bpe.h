@@ -13,7 +13,9 @@
 #define BPE_PRELUDE_SIZE 256
 
 // TODO: support unicode
-// Right now we assume everything is ASCII.
+// Right now we assume everything is ASCII. Actually, we simply don't care about encoding.
+// We just work with bytes. But since we are "training" usually on UTF-8 text the generated
+// result if very like a valid UTF-8. But it's not guaranteed.
 
 typedef struct {
     uint32_t *items;
