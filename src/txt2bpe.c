@@ -60,116 +60,6 @@ double get_secs(void)
     return (double)tp.tv_sec + (double)tp.tv_nsec*1e-9;
 }
 
-// #define ENABLE_THREADS
-#define INPLACE
-
-typedef struct {
-    size_t id;
-    size_t thread_count;
-    Freq *freqs;
-    const Tokens *tokens_in;
-    pthread_t thread;
-    pthread_barrier_t *start;
-    pthread_barrier_t *stop;
-} Freq_Collector_Thread_Context;
-
-void *freq_collector_thread_routine(void *arg)
-{
-    Freq_Collector_Thread_Context *ctx = arg;
-
-    while (true) {
-        pthread_barrier_wait(ctx->start);
-
-        hmfree(ctx->freqs);
-
-        size_t chunk_size = ctx->tokens_in->count/ctx->thread_count;
-        size_t begin      = chunk_size*ctx->id;
-        size_t end        = chunk_size*(ctx->id + 1);
-        if (ctx->id + 1 >= ctx->thread_count) end += ctx->tokens_in->count%ctx->thread_count;
-
-        for (size_t i = begin; i < end; ++i) {
-            if (i + 1 >= ctx->tokens_in->count) break;
-            Pair pair = {
-                .l = ctx->tokens_in->items[i],
-                .r = ctx->tokens_in->items[i + 1]
-            };
-            ptrdiff_t place = hmgeti(ctx->freqs, pair);
-            if (place < 0) hmput(ctx->freqs, pair, 1);
-            else ctx->freqs[place].value += 1;
-        }
-
-        pthread_barrier_wait(ctx->stop);
-    }
-    UNREACHABLE("freq_collector_thread_routine");
-}
-
-void create_freq_collector_thread(Freq_Collector_Thread_Context *ctx, size_t id, size_t thread_count, const Tokens *tokens_in, pthread_barrier_t *start, pthread_barrier_t *stop)
-{
-    static_assert(sizeof(Freq_Collector_Thread_Context) ==
-                    sizeof(ctx->id)
-                  + sizeof(ctx->thread_count)
-                  + sizeof(ctx->freqs)
-                  + sizeof(ctx->tokens_in)
-                  + sizeof(ctx->thread)
-                  + sizeof(ctx->start)
-                  + sizeof(ctx->stop),
-                  "Size of Freq_Collector_Thread_Context have changed (or you are compiling not on x86_64). "
-                  "You may want to update the constructor below.");
-    ctx->id = id;
-    ctx->thread_count = thread_count;
-    ctx->freqs = NULL;
-    ctx->tokens_in = tokens_in;
-    memset(&ctx->thread, 0, sizeof(ctx->thread));
-    ctx->start = start;
-    ctx->stop = stop;
-    int ret = pthread_create(&ctx->thread, NULL, freq_collector_thread_routine, ctx);
-    assert(ret == 0);
-}
-
-typedef struct {
-    Freq_Collector_Thread_Context *ctxs;
-    size_t ctxs_count;
-    pthread_barrier_t start;
-    pthread_barrier_t stop;
-} Freq_Collector;
-
-void freq_collector_init(Freq_Collector *fc, size_t threads_count, const Tokens *tokens_in)
-{
-    fc->ctxs_count = threads_count;
-
-    int ret;
-    ret = pthread_barrier_init(&fc->start, NULL, fc->ctxs_count + 1);
-    assert(ret == 0);
-    ret = pthread_barrier_init(&fc->stop, NULL, fc->ctxs_count + 1);
-    assert(ret == 0);
-
-    fc->ctxs = calloc(threads_count, sizeof(*fc->ctxs));
-    assert(fc->ctxs != NULL);
-    for (size_t id = 0; id < threads_count; ++id) {
-        create_freq_collector_thread(&fc->ctxs[id], id, fc->ctxs_count, tokens_in, &fc->start, &fc->stop);
-    }
-}
-
-Freq *freq_collector_go(Freq_Collector *fc)
-{
-    pthread_barrier_wait(&fc->start);
-    pthread_barrier_wait(&fc->stop);
-
-    Freq *merged_freq = NULL;
-
-    for (size_t id = 0; id < fc->ctxs_count; ++id) {
-        size_t n = hmlen(fc->ctxs[id].freqs);
-        for (size_t i = 0; i < n; ++i) {
-            Pair key = fc->ctxs[id].freqs[i].key;
-            ptrdiff_t place = hmgeti(merged_freq, key);
-            if (place < 0) hmputs(merged_freq, fc->ctxs[id].freqs[i]);
-            else merged_freq[place].value += fc->ctxs[id].freqs[i].value;
-        }
-    }
-
-    return merged_freq;
-}
-
 Freq *collect_freqs(Tokens tokens_in)
 {
     Freq *freq = NULL;
@@ -268,22 +158,10 @@ int main(int argc, char **argv)
         da_append(&tokens_in, (uint8_t)sb.items[i]);
     }
 
-#ifdef ENABLE_THREADS
-    Freq_Collector fc = {0};
-    freq_collector_init(&fc, *threads_count, &tokens_in);
-#endif // ENABLE_THREADS
-
     double *profile_samples = malloc((*report_freq)*sizeof(*profile_samples));
     assert(profile_samples != NULL);
 
-#ifdef INPLACE
-            // hmfree(freq);
-#ifdef ENABLE_THREADS
-            freq = freq_collector_go(&fc);
-#else
-            freq = collect_freqs(tokens_in);
-#endif // ENABLE_THREADS
-#endif // INPLACE
+    freq = collect_freqs(tokens_in);
 
     size_t iteration = 0;
     for (; *max_iterations == 0 || iteration < *max_iterations ; ++iteration) {
@@ -291,15 +169,6 @@ int main(int argc, char **argv)
         if (iteration%(*dump_freq)   == 0) if (!dump_state(iteration, output_dir_path, pairs, tokens_in)) return 1;
 
         double begin_secs = get_secs();
-
-#ifndef INPLACE
-            hmfree(freq);
-#ifdef ENABLE_THREADS
-            freq = freq_collector_go(&fc);
-#else
-            freq = collect_freqs(tokens_in);
-#endif // ENABLE_THREADS
-#endif // INPLACE
 
             ptrdiff_t max_index = 0;
             for (ptrdiff_t i = 1; i < hmlen(freq); ++i) {
@@ -315,7 +184,7 @@ int main(int argc, char **argv)
             da_append(&pairs, max_pair);
 
             tokens_out.count = 0;
-#ifdef INPLACE
+
             for (size_t i = 0; i < tokens_in.count; ) {
                 #if 0
                 printf("in:  "); for (size_t j = 0; j < tokens_in.count;  ++j) { printf("%u ", tokens_in.items[j]);  } printf("\n");
@@ -384,25 +253,6 @@ int main(int argc, char **argv)
                     }
                 }
             }
-#else // INPLACE
-            for (size_t i = 0; i < tokens_in.count; ) {
-                if (i + 1 >= tokens_in.count) {
-                    da_append(&tokens_out, tokens_in.items[i]);
-                    i += 1;
-                } else {
-                    Pair pair;
-                    pair.l = tokens_in.items[i];
-                    pair.r = tokens_in.items[i + 1];
-                    if (memcmp(&pair, &max_pair, sizeof(pair)) == 0) {
-                        da_append(&tokens_out, max_token);
-                        i += 2;
-                    } else {
-                        da_append(&tokens_out, tokens_in.items[i]);
-                        i += 1;
-                    }
-                }
-            }
-#endif // INPLACE
 
         profile_samples[iteration%(*report_freq)] = get_secs() - begin_secs;
 
