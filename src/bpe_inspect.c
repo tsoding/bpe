@@ -50,7 +50,7 @@ int main(int argc, char **argv)
             sb_tmp.count = 0;
             render_token(pairs, token, &sb_tmp);
             c_strlit_escape_bytes(sb_tmp.items, sb_tmp.count, &sb);
-        sb_append_cstr(&sb, "\"\n");
+        sb_appendf(&sb, "\" (%zu)\n", pairs.items[token].freq);
         sb_append_null(&sb);
 
         printf("%s", sb.items);

@@ -14,7 +14,11 @@
 #include "bpe.h"
 
 typedef struct {
-    Pair key;
+    uint32_t l, r;
+} Pair_Key;
+
+typedef struct {
+    Pair_Key key;
     size_t value;
 } Freq;
 
@@ -65,7 +69,7 @@ Freq *collect_freqs(Tokens tokens_in)
     Freq *freq = NULL;
 
     for (size_t i = 0; i < tokens_in.count - 1; ++i) {
-        Pair pair = {
+        Pair_Key pair = {
             .l = tokens_in.items[i],
             .r = tokens_in.items[i + 1]
         };
@@ -179,9 +183,13 @@ int main(int argc, char **argv)
 
             if (freq[max_index].value <= (*term_freq)) break; // compression is done
 
-            Pair max_pair = freq[max_index].key;
+            Pair_Key max_pair = freq[max_index].key;
             uint32_t max_token = pairs.count;
-            da_append(&pairs, max_pair);
+            da_append(&pairs, ((Pair) {
+                .l = max_pair.l,
+                .r = max_pair.r,
+                .freq = freq[max_index].value,
+            }));
 
             tokens_out.count = 0;
 
@@ -196,7 +204,7 @@ int main(int argc, char **argv)
                     da_append(&tokens_out, tokens_in.items[i]);
                     i += 1;
                 } else {
-                    Pair pair;
+                    Pair_Key pair;
                     pair.l = tokens_in.items[i];
                     pair.r = tokens_in.items[i + 1];
                     if (memcmp(&pair, &max_pair, sizeof(pair)) == 0) {
