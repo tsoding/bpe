@@ -13,9 +13,7 @@
 #define BPE_PRELUDE_SIZE 256
 
 // TODO: support unicode
-// Right now we assume everything is ASCII. Actually, we simply don't care about encoding.
-// We just work with bytes. But since we are "training" usually on UTF-8 text the generated
-// result if very like a valid UTF-8. But it's not guaranteed.
+// Right now we assume everything is ASCII.
 
 typedef struct {
     uint32_t *items;
@@ -23,8 +21,11 @@ typedef struct {
     size_t capacity;
 } Tokens;
 
+#define BPE_VERSION_CURRENT 1
+
 typedef struct {
     uint32_t l, r;
+    uint64_t freq;
 } Pair;
 
 typedef struct {
@@ -32,7 +33,8 @@ typedef struct {
     size_t count;
     size_t capacity;
 } Pairs;
-bool load_pairs(const char *file_path, Pairs *pairs, String_Builder *tmp_sb);
+
+bool load_pairs(const char *file_path, Pairs *pairs, String_Builder *tmp_sb, size_t *version);
 bool dump_pairs(const char *file_path, Pairs pairs);
 bool dump_tokens(const char *file_path, Tokens tokens);
 bool load_tokens(const char *file_path, Tokens *tokens, String_Builder *tmp_sb);

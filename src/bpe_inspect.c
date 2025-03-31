@@ -37,7 +37,9 @@ int main(int argc, char **argv)
     String_Builder sb = {0};
     String_Builder sb_tmp = {0};
 
-    if (!load_pairs(input_file_path, &pairs, &sb_tmp)) return 1;
+    size_t version = 0;
+    if (!load_pairs(input_file_path, &pairs, &sb_tmp, &version)) return 1;
+    printf("INFO: loaded %s BPE version %zu\n", input_file_path, version);
 
     for (uint32_t token = 1; token < pairs.count; ++token) {
         sb.count = 0;

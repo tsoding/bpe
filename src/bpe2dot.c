@@ -42,7 +42,9 @@ int main(int argc, char **argv)
     Pairs pairs = {0};
     String_Builder sb = {0};
 
-    if (!load_pairs(input_file_path, &pairs, &sb)) return 1;
+    size_t version = 0;
+    if (!load_pairs(input_file_path, &pairs, &sb, &version)) return 1;
+    printf("INFO: loaded %s BPE version %zu\n", input_file_path, version);
     sb.count = 0;
     render_dot(pairs, &sb);
     if (!write_entire_file(output_file_path, sb.items, sb.count)) return 1;

@@ -46,7 +46,9 @@ int main(int argc, char **argv)
     Pairs pairs = {0};
     String_Builder sb = {0};
     if (!load_tokens(*tkn_path, &tokens, &sb)) return 1;
-    if (!load_pairs(*bpe_path, &pairs, &sb)) return 1;
+    size_t version = 0;
+    if (!load_pairs(*bpe_path, &pairs, &sb, &version)) return 1;
+    printf("INFO: loaded %s BPE version %zu\n", *bpe_path, version);
 
     for (size_t i = 0; i < tokens.count; ++i) {
         if (tokens.items[i] >= pairs.count) {

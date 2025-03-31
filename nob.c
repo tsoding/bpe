@@ -16,6 +16,7 @@ void build_tool_async(Cmd *cmd, Procs *procs, const char *bin_path, const char *
 const char *tools[] = {
     "txt2bpe",
     "bpe2dot",
+    "bpe2bpe",
     "bpe_inspect",
     "bpe_gen",
     "tkn_inspect",

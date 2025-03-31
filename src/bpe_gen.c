@@ -45,7 +45,9 @@ int main(int argc, char **argv)
     String_Builder sb = {0};
     Tokens next = {0};
 
-    if (!load_pairs(*bpe_path, &pairs, &sb)) return 1;
+    size_t version = 0;
+    if (!load_pairs(*bpe_path, &pairs, &sb, &version)) return 1;
+    printf("INFO: loaded %s BPE version %zu\n", *bpe_path, version);
 
     uint32_t token = rand()%pairs.count;
 
