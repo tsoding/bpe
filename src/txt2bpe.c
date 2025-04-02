@@ -193,73 +193,72 @@ int main(int argc, char **argv)
 
             tokens_out.count = 0;
 
-            for (size_t i = 0; i < tokens_in.count; ) {
+            size_t i;
+            for (i = 0; i < tokens_in.count - 1; ) {
                 #if 0
                 printf("in:  "); for (size_t j = 0; j < tokens_in.count;  ++j) { printf("%u ", tokens_in.items[j]);  } printf("\n");
                 printf("out: "); for (size_t j = 0; j < tokens_out.count; ++j) { printf("%u ", tokens_out.items[j]); } printf("\n");
                 for (ptrdiff_t i = 0; i < hmlen(freq); ++i) printf("  (%u, %u) => %zu\n", freq[i].key.l, freq[i].key.r, freq[i].value);
                 printf("------------------------------\n");
                 #endif
-                if (i + 1 >= tokens_in.count) {
-                    da_append(&tokens_out, tokens_in.items[i]);
-                    i += 1;
-                } else {
-                    Pair_Key pair;
-                    pair.l = tokens_in.items[i];
-                    pair.r = tokens_in.items[i + 1];
-                    if (memcmp(&pair, &max_pair, sizeof(pair)) == 0) {
-                        ptrdiff_t place;
-                        if (tokens_out.count > 0) {
-                            pair.l = tokens_out.items[tokens_out.count - 1];
+                Pair_Key pair;
+                pair.l = tokens_in.items[i];
+                pair.r = tokens_in.items[i + 1];
+                if (memcmp(&pair, &max_pair, sizeof(pair)) == 0) {
+                    ptrdiff_t place;
+                    if (tokens_out.count > 0) {
+                        pair.l = tokens_out.items[tokens_out.count - 1];
 
-                            pair.r = tokens_in.items[i];
-                            place = hmgeti(freq, pair);
-                            if (!(place >= 0)) {
-                                printf("%s:%d: i = %zu, pair = (%u, %u)\n", __FILE__, __LINE__, i, pair.l, pair.r);
-                                abort();
-                            }
-                            assert(freq[place].value > 0);
-                            freq[place].value -= 1;
-                            // TODO: if (freq[place].value == 0) hmdel(freq, piar)
-
-                            pair.r = max_token;
-                            ptrdiff_t place = hmgeti(freq, pair);
-                            if (place < 0) hmput(freq, pair, 1);
-                            else freq[place].value += 1;
+                        pair.r = tokens_in.items[i];
+                        place = hmgeti(freq, pair);
+                        if (!(place >= 0)) {
+                            printf("%s:%d: i = %zu, pair = (%u, %u)\n", __FILE__, __LINE__, i, pair.l, pair.r);
+                            abort();
                         }
+                        assert(freq[place].value > 0);
+                        freq[place].value -= 1;
+                        // TODO: if (freq[place].value == 0) hmdel(freq, piar)
 
-                        pair = max_pair;
+                        pair.r = max_token;
+                        ptrdiff_t place = hmgeti(freq, pair);
+                        if (place < 0) hmput(freq, pair, 1);
+                        else freq[place].value += 1;
+                    }
+
+                    pair = max_pair;
+                    place = hmgeti(freq, pair);
+                    assert(place >= 0);
+                    assert(freq[place].value > 0);
+                    freq[place].value -= 1;
+
+                    da_append(&tokens_out, max_token);
+                    i += 2;
+
+                    //         v
+                    // in:  abcd
+                    // out: aZ
+                    // Z=bc
+                    if (i < tokens_in.count) {
+                        pair.r = tokens_in.items[i];
+
+                        pair.l = tokens_in.items[i-1];
                         place = hmgeti(freq, pair);
                         assert(place >= 0);
                         assert(freq[place].value > 0);
                         freq[place].value -= 1;
 
-                        da_append(&tokens_out, max_token);
-                        i += 2;
-
-                        //         v
-                        // in:  abcd
-                        // out: aZ
-                        // Z=bc
-                        if (i < tokens_in.count) {
-                            pair.r = tokens_in.items[i];
-
-                            pair.l = tokens_in.items[i-1];
-                            place = hmgeti(freq, pair);
-                            assert(place >= 0);
-                            assert(freq[place].value > 0);
-                            freq[place].value -= 1;
-
-                            pair.l = tokens_out.items[tokens_out.count-1];
-                            ptrdiff_t place = hmgeti(freq, pair);
-                            if (place < 0) hmput(freq, pair, 1);
-                            else freq[place].value += 1;
-                        }
-                    } else {
-                        da_append(&tokens_out, tokens_in.items[i]);
-                        i += 1;
+                        pair.l = tokens_out.items[tokens_out.count-1];
+                        ptrdiff_t place = hmgeti(freq, pair);
+                        if (place < 0) hmput(freq, pair, 1);
+                        else freq[place].value += 1;
                     }
+                } else {
+                    da_append(&tokens_out, tokens_in.items[i]);
+                    i += 1;
                 }
+            }
+            if (i == tokens_in.count - 1) {
+                da_append(&tokens_out, tokens_in.items[i]);
             }
 
         profile_samples[iteration%(*report_freq)] = get_secs() - begin_secs;
