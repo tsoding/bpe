@@ -43,7 +43,7 @@ int main(int argc, char **argv)
 
     Pairs pairs = {0};
     String_Builder sb = {0};
-    Tokens next = {0};
+    Pairs next = {0};
 
     size_t version = 0;
     if (!load_pairs(*bpe_path, &pairs, &sb, &version)) return 1;
@@ -61,7 +61,7 @@ int main(int argc, char **argv)
             next.count = 0;
             for (size_t i = 0; i < pairs.count; ++i) {
                 if (pairs.items[i].l == token) {
-                    da_append(&next, pairs.items[i].r);
+                    da_append(&next, pairs.items[i]);
                 }
             }
             if (next.count > 0) break;
@@ -71,7 +71,25 @@ int main(int argc, char **argv)
 
         if (next.count == 0) break;
 
-        token = next.items[rand()%next.count];
+        uint64_t sum = 0;
+        for (size_t j = 0; j < next.count; ++j) {
+            sum += next.items[j].freq;
+        }
+
+        uint64_t roll = (uint64_t)rand()*sum/RAND_MAX;
+        uint64_t curr = 0;
+
+        // TODO: make sure there is no off-by-one here
+        bool found = false;
+        for (size_t j = 0; j < next.count; ++j) {
+            if (curr + next.items[j].freq > roll) {
+                token = next.items[j].r;
+                found = true;
+                break;
+            }
+            curr += next.items[j].freq;
+        }
+        assert(found);
     }
 
     return 0;
